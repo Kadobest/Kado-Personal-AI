@@ -642,7 +642,13 @@ body.dark .rem-status.done { background: #102008; color: #78D478; }
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="this.dataset.failed='1'"></script>
+<script>
+  // Fallback CDN in case jsDelivr is unreachable
+  if (!window.supabase) {
+    document.write('<script src="https://unpkg.com/@supabase/supabase-js@2"><\/script>');
+  }
+</script>
 <script>
 
 /* ===== lang.js ===== */
@@ -806,30 +812,45 @@ window.LANGS = LANGS;
 const SUPABASE_URL = 'https://lrtjuqryoklhgarrfrpx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxydGp1cXJ5b2tsaGdhcnJmcnB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NTUxNzcsImV4cCI6MjA5NjEzMTE3N30.SEjmnheEoh_uoQeNbhI078oZrGFAYqAnIoCV37rthEo';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true }
-});
+let supabase = null;
+let SUPABASE_INIT_ERROR = null;
+try {
+  if (!window.supabase || !window.supabase.createClient) {
+    throw new Error('Supabase library failed to load from CDN. Check your internet connection and refresh.');
+  }
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true }
+  });
+} catch (e) {
+  SUPABASE_INIT_ERROR = e.message || String(e);
+  console.error('Supabase init failed:', e);
+}
 
 // ── Auth ──────────────────────────────────────────────
 const Auth = {
   async getSession() {
+    if (!supabase) return null;
     const { data } = await supabase.auth.getSession();
     return data.session;
   },
   async signUp(email, password) {
+    if (!supabase) throw new Error(SUPABASE_INIT_ERROR || 'Service unavailable');
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
     return data;
   },
   async signIn(email, password) {
+    if (!supabase) throw new Error(SUPABASE_INIT_ERROR || 'Service unavailable');
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     return data;
   },
   async signOut() {
+    if (!supabase) return;
     await supabase.auth.signOut();
   },
   onChange(cb) {
+    if (!supabase) return;
     supabase.auth.onAuthStateChange((_event, session) => cb(session));
   },
   userId() {
@@ -1083,6 +1104,17 @@ window.addEventListener('DOMContentLoaded', async () => {
   registerSW();
   setupPWA();
   startClock();
+
+  if (SUPABASE_INIT_ERROR) {
+    const msg = document.getElementById('auth-msg');
+    if (msg) {
+      msg.style.color = 'var(--red)';
+      msg.textContent = SUPABASE_INIT_ERROR;
+    }
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    return;
+  }
 
   const session = await Auth.getSession();
   if (session) {
