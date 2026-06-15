@@ -812,13 +812,13 @@ window.LANGS = LANGS;
 const SUPABASE_URL = 'https://lrtjuqryoklhgarrfrpx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxydGp1cXJ5b2tsaGdhcnJmcnB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NTUxNzcsImV4cCI6MjA5NjEzMTE3N30.SEjmnheEoh_uoQeNbhI078oZrGFAYqAnIoCV37rthEo';
 
-let supabase = null;
+let sb = null;
 let SUPABASE_INIT_ERROR = null;
 try {
   if (!window.supabase || !window.supabase.createClient) {
     throw new Error('Supabase library failed to load from CDN. Check your internet connection and refresh.');
   }
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true }
   });
 } catch (e) {
@@ -829,135 +829,135 @@ try {
 // ── Auth ──────────────────────────────────────────────
 const Auth = {
   async getSession() {
-    if (!supabase) return null;
-    const { data } = await supabase.auth.getSession();
+    if (!sb) return null;
+    const { data } = await sb.auth.getSession();
     return data.session;
   },
   async signUp(email, password) {
-    if (!supabase) throw new Error(SUPABASE_INIT_ERROR || 'Service unavailable');
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (!sb) throw new Error(SUPABASE_INIT_ERROR || 'Service unavailable');
+    const { data, error } = await sb.auth.signUp({ email, password });
     if (error) throw error;
     return data;
   },
   async signIn(email, password) {
-    if (!supabase) throw new Error(SUPABASE_INIT_ERROR || 'Service unavailable');
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!sb) throw new Error(SUPABASE_INIT_ERROR || 'Service unavailable');
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
     return data;
   },
   async signOut() {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    if (!sb) return;
+    await sb.auth.signOut();
   },
   onChange(cb) {
-    if (!supabase) return;
-    supabase.auth.onAuthStateChange((_event, session) => cb(session));
+    if (!sb) return;
+    sb.auth.onAuthStateChange((_event, session) => cb(session));
   },
   userId() {
-    return supabase.auth.getUser().then(({ data }) => data?.user?.id || null);
+    return sb.auth.getUser().then(({ data }) => data?.user?.id || null);
   }
 };
 
 // ── Data layer (all rows scoped to the logged-in user via RLS) ──────
 const DB = {
   async _uid() {
-    const { data } = await supabase.auth.getUser();
+    const { data } = await sb.auth.getUser();
     if (!data?.user) throw new Error('Not signed in');
     return data.user.id;
   },
 
   // Tasks
   async getTasks() {
-    const { data, error } = await supabase.from('tasks').select('*').order('created_at', { ascending: true });
+    const { data, error } = await sb.from('tasks').select('*').order('created_at', { ascending: true });
     if (error) throw error;
     return data;
   },
   async addTask(text, category) {
     const user_id = await this._uid();
-    const { data, error } = await supabase.from('tasks').insert({ text, category, done: false, user_id }).select();
+    const { data, error } = await sb.from('tasks').insert({ text, category, done: false, user_id }).select();
     if (error) throw error;
     return data[0];
   },
   async updateTask(id, updates) {
-    const { data, error } = await supabase.from('tasks').update(updates).eq('id', id).select();
+    const { data, error } = await sb.from('tasks').update(updates).eq('id', id).select();
     if (error) throw error;
     return data[0];
   },
   async deleteTask(id) {
-    const { error } = await supabase.from('tasks').delete().eq('id', id);
+    const { error } = await sb.from('tasks').delete().eq('id', id);
     if (error) throw error;
   },
 
   // Expenses
   async getExpenses() {
-    const { data, error } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
+    const { data, error } = await sb.from('expenses').select('*').order('created_at', { ascending: false });
     if (error) throw error;
     return data;
   },
   async addExpense(description, amount, type) {
     const user_id = await this._uid();
-    const { data, error } = await supabase.from('expenses').insert({ description, amount, type, user_id }).select();
+    const { data, error } = await sb.from('expenses').insert({ description, amount, type, user_id }).select();
     if (error) throw error;
     return data[0];
   },
   async deleteExpense(id) {
-    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    const { error } = await sb.from('expenses').delete().eq('id', id);
     if (error) throw error;
   },
 
   // Reminders
   async getReminders() {
-    const { data, error } = await supabase.from('reminders').select('*').order('time', { ascending: true });
+    const { data, error } = await sb.from('reminders').select('*').order('time', { ascending: true });
     if (error) throw error;
     return data;
   },
   async addReminder(time, text) {
     const user_id = await this._uid();
-    const { data, error } = await supabase.from('reminders').insert({ time, text, fired: false, user_id }).select();
+    const { data, error } = await sb.from('reminders').insert({ time, text, fired: false, user_id }).select();
     if (error) throw error;
     return data[0];
   },
   async updateReminder(id, updates) {
-    const { error } = await supabase.from('reminders').update(updates).eq('id', id);
+    const { error } = await sb.from('reminders').update(updates).eq('id', id);
     if (error) throw error;
   },
   async deleteReminder(id) {
-    const { error } = await supabase.from('reminders').delete().eq('id', id);
+    const { error } = await sb.from('reminders').delete().eq('id', id);
     if (error) throw error;
   },
 
   // Chat history
   async getChatHistory() {
-    const { data, error } = await supabase.from('chat_history').select('*').order('created_at', { ascending: true }).limit(100);
+    const { data, error } = await sb.from('chat_history').select('*').order('created_at', { ascending: true }).limit(100);
     if (error) throw error;
     return data;
   },
   async addChatMessage(role, content) {
     const user_id = await this._uid();
-    const { data, error } = await supabase.from('chat_history').insert({ role, content, user_id }).select();
+    const { data, error } = await sb.from('chat_history').insert({ role, content, user_id }).select();
     if (error) throw error;
     return data[0];
   },
   async clearChatHistory() {
     const user_id = await this._uid();
-    const { error } = await supabase.from('chat_history').delete().eq('user_id', user_id);
+    const { error } = await sb.from('chat_history').delete().eq('user_id', user_id);
     if (error) throw error;
   },
 
   // Settings (key/value per user)
   async getSetting(key) {
-    const { data, error } = await supabase.from('settings').select('value').eq('key', key).maybeSingle();
+    const { data, error } = await sb.from('settings').select('value').eq('key', key).maybeSingle();
     if (error) return null;
     return data ? data.value : null;
   },
   async setSetting(key, value) {
     const user_id = await this._uid();
-    const { error } = await supabase.from('settings').upsert({ user_id, key, value: String(value) }, { onConflict: 'user_id,key' });
+    const { error } = await sb.from('settings').upsert({ user_id, key, value: String(value) }, { onConflict: 'user_id,key' });
     if (error) throw error;
   }
 };
 
-window.supabaseClient = supabase;
+window.supabaseClient = sb;
 window.Auth = Auth;
 window.DB = DB;
 
